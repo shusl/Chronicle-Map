@@ -212,6 +212,7 @@ public final class ChronicleMapBuilder<K, V> implements
     private boolean replicated;
     private boolean persisted;
     private String replicatedMapClassName = ReplicatedChronicleMap.class.getName();
+    private boolean closeOnShutdown = true;
 
     ChronicleMapBuilder(Class<K> keyClass, Class<V> valueClass) {
         keyBuilder = new SerializationBuilder<>(keyClass);
@@ -474,6 +475,7 @@ public final class ChronicleMapBuilder<K, V> implements
                     (ChronicleMapBuilder<K, V>) super.clone();
             result.keyBuilder = keyBuilder.clone();
             result.valueBuilder = valueBuilder.clone();
+            result.closeOnShutdown = this.closeOnShutdown;
             result.privateAPI = new ChronicleMapBuilderPrivateAPI<>(result);
             return result;
         } catch (CloneNotSupportedException e) {
@@ -536,6 +538,10 @@ public final class ChronicleMapBuilder<K, V> implements
         return this;
     }
 
+    public ChronicleMapBuilder<K, V> autoCloseOnShutdown(boolean close){
+        this.closeOnShutdown = close;
+        return this;
+    }
     /**
      * {@inheritDoc}
      *
@@ -1666,7 +1672,10 @@ public final class ChronicleMapBuilder<K, V> implements
         map.registerCleaner();
         // Ensure safe publication of the ChronicleMap
         OS.memory().storeFence();
-        map.addToOnExitHook();
+        if(closeOnShutdown){
+            LOG.info("map will closed by shutdown hook");
+            map.addToOnExitHook();
+        }
     }
 
     /**

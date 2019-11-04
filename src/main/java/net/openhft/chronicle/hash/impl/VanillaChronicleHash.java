@@ -658,7 +658,6 @@ public abstract class VanillaChronicleHash<K,
         // Releases nothing after resources.releaseManually(), only removes the cleaner
         // from the internal linked list of all cleaners.
         cleaner.clean();
-        ChronicleHashCloseOnExitHook.remove(this);
         // Make GC life easier
         keyReader = null;
         keyDataAccess = null;
