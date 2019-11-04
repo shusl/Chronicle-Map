@@ -1,18 +1,17 @@
 /*
- *      Copyright (C) 2012, 2016  higherfrequencytrading.com
- *      Copyright (C) 2016 Roman Leventov
+ * Copyright 2012-2018 Chronicle Map Contributors
  *
- *      This program is free software: you can redistribute it and/or modify
- *      it under the terms of the GNU Lesser General Public License as published by
- *      the Free Software Foundation, either version 3 of the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      This program is distributed in the hope that it will be useful,
- *      but WITHOUT ANY WARRANTY; without even the implied warranty of
- *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *      GNU Lesser General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *      You should have received a copy of the GNU Lesser General Public License
- *      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.openhft.chronicle.map;
@@ -21,6 +20,7 @@ import net.openhft.chronicle.algo.MemoryUnit;
 import net.openhft.chronicle.algo.hashing.LongHashFunction;
 import net.openhft.chronicle.bytes.Byteable;
 import net.openhft.chronicle.bytes.Bytes;
+import net.openhft.chronicle.bytes.BytesMarshallable;
 import net.openhft.chronicle.core.Jvm;
 import net.openhft.chronicle.core.OS;
 import net.openhft.chronicle.hash.ChronicleHashBuilder;
@@ -32,21 +32,21 @@ import net.openhft.chronicle.hash.impl.util.CanonicalRandomAccessFiles;
 import net.openhft.chronicle.hash.impl.util.Throwables;
 import net.openhft.chronicle.hash.impl.util.math.PoissonDistribution;
 import net.openhft.chronicle.hash.serialization.*;
+import net.openhft.chronicle.hash.serialization.impl.BytesMarshallableReaderWriter;
+import net.openhft.chronicle.hash.serialization.impl.MarshallableReaderWriter;
 import net.openhft.chronicle.hash.serialization.impl.SerializationBuilder;
 import net.openhft.chronicle.map.replication.MapRemoteOperations;
 import net.openhft.chronicle.set.ChronicleSetBuilder;
 import net.openhft.chronicle.values.ValueModel;
 import net.openhft.chronicle.values.Values;
+import net.openhft.chronicle.wire.Marshallable;
 import net.openhft.chronicle.wire.TextWire;
 import net.openhft.chronicle.wire.Wire;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -170,7 +170,7 @@ public final class ChronicleMapBuilder<K, V> implements
     /**
      * Default timeout is 1 minute. Even loopback tests converge often in the course of seconds,
      * let alone WAN replication over many nodes might take tens of seconds.
-     * <p/>
+     * <p>
      * TODO review
      */
     long cleanupTimeout = 1;
@@ -183,6 +183,8 @@ public final class ChronicleMapBuilder<K, V> implements
     MapMethods<K, V, ?> methods = DefaultSpi.mapMethods();
     MapEntryOperations<K, V, ?> entryOperations = mapEntryOperations();
     MapRemoteOperations<K, V, ?> remoteOperations = mapRemoteOperations();
+    Runnable preShutdownAction;
+    boolean skipCloseOnExitHook = false;
     private String name;
     // not final because of cloning
     private ChronicleMapBuilderPrivateAPI<K, V> privateAPI =
@@ -253,7 +255,7 @@ public final class ChronicleMapBuilder<K, V> implements
      * entries are not even landing the map, because compute() always returns null.
      */
     private static void fileLockedIO(
-            File file, FileChannel fileChannel, FileIOAction fileIOAction) throws IOException {
+            File file, FileChannel fileChannel, FileIOAction fileIOAction) {
         fileLockingControl.compute(file, (k, v) -> {
             try {
                 try (FileLock ignored = fileChannel.lock()) {
@@ -282,6 +284,54 @@ public final class ChronicleMapBuilder<K, V> implements
             @NotNull Class<K> keyClass, @NotNull Class<V> valueClass) {
         return new ChronicleMapBuilder<>(keyClass, valueClass);
     }
+
+    /**
+     * Returns a new {@code ChronicleMapBuilder} instance which is able to {@linkplain #create()
+     * create} maps with the specified key and value classes. It makes some assumptions about the size of entries
+     * and the marshallers used
+     *
+     * @param keyClass   class object used to infer key type and discover it's properties via
+     *                   reflection
+     * @param valueClass class object used to infer value type and discover it's properties via
+     *                   reflection
+     * @param <K>        key type of the maps, created by the returned builder
+     * @param <V>        value type of the maps, created by the returned builder
+     * @return a new builder for the given key and value classes
+     */
+    public static <K, V> ChronicleMapBuilder<K, V> simpleMapOf(
+            @NotNull Class<K> keyClass, @NotNull Class<V> valueClass) {
+        ChronicleMapBuilder<K, V> builder =
+                new ChronicleMapBuilder<>(keyClass, valueClass)
+                        .putReturnsNull(true)
+                        .removeReturnsNull(true);
+        builder.name(toCamelCase(valueClass.getSimpleName()));
+        if (!builder.isKeySizeKnown())
+            builder.averageKeySize(128);
+        if (!builder.isValueSizeKnown())
+            builder.averageValueSize(512);
+        if (Marshallable.class.isAssignableFrom(valueClass)) {
+            //noinspection unchecked
+            builder.averageValueSize(1024)
+                    .valueMarshaller(new MarshallableReaderWriter<>((Class) valueClass));
+        } else if (BytesMarshallable.class.isAssignableFrom(valueClass)) {
+            builder.valueMarshaller(new BytesMarshallableReaderWriter<>((Class) valueClass));
+        }
+
+        return builder;
+    }
+
+    private static String toCamelCase(String name) {
+        return Character.toLowerCase(name.charAt(0)) + name.substring(1);
+    }
+
+    private boolean isKeySizeKnown() {
+        return keyBuilder.sizeIsStaticallyKnown;
+    }
+
+    private boolean isValueSizeKnown() {
+        return valueBuilder.sizeIsStaticallyKnown;
+    }
+
 
     private static void checkSegments(long segments) {
         if (segments <= 0) {
@@ -659,6 +709,14 @@ public final class ChronicleMapBuilder<K, V> implements
      * @see #actualChunkSize(int)
      */
     public ChronicleMapBuilder<K, V> averageValue(V averageValue) {
+        Class<?> valueClass = averageValue.getClass();
+        if (BytesMarshallable.class.isAssignableFrom(valueClass) &&
+                valueBuilder.tClass.isInterface()) {
+            if (Serializable.class.isAssignableFrom(valueClass))
+                LOG.warn("BytesMarshallable " + valueClass + " will be serialized as Serializable as the value class is an interface");
+            else
+                throw new IllegalArgumentException("Using BytesMarshallable and an interface value type not supported");
+        }
         Objects.requireNonNull(averageValue);
         checkSizeIsStaticallyKnown(valueBuilder, "Value");
         this.averageValue = averageValue;
@@ -730,6 +788,8 @@ public final class ChronicleMapBuilder<K, V> implements
         }
         if (actualChunkSize <= 0)
             throw new IllegalArgumentException("Chunk size must be positive");
+        if (alignment > 0 && actualChunkSize % alignment != 0)
+            throw new IllegalArgumentException("The chunk size (" + actualChunkSize + ") must be a multiple of the alignment (" + alignment + ")");
         this.actualChunkSize = actualChunkSize;
         return this;
     }
@@ -750,6 +810,7 @@ public final class ChronicleMapBuilder<K, V> implements
         double valueSize = averageValueSize();
         size += averageSizeStoringLength(valueBuilder, valueSize);
         int alignment = valueAlignment();
+        size = alignAddr((long) Math.ceil(size), alignment); // so the value starts aligned
         int worstAlignment;
         if (worstAlignmentComputationRequiresValueSize(alignment)) {
             long constantSizeBeforeAlignment = toLong(size);
@@ -805,7 +866,7 @@ public final class ChronicleMapBuilder<K, V> implements
         return valueBuilder.constantSize();
     }
 
-    boolean constantlySizedKeys() {
+    public boolean constantlySizedKeys() {
         return keyBuilder.constantSizeMarshaller() || sampleKey != null;
     }
 
@@ -891,7 +952,7 @@ public final class ChronicleMapBuilder<K, V> implements
         return result;
     }
 
-    boolean constantlySizedValues() {
+    public boolean constantlySizedValues() {
         return valueBuilder.constantSizeMarshaller() || sampleValue != null;
     }
 
@@ -925,8 +986,17 @@ public final class ChronicleMapBuilder<K, V> implements
             throw new IllegalArgumentException("Alignment should be a power of 2, " + alignment +
                     " given");
         }
+        if (Jvm.isArm() && alignment < 8)
+            return this;
+        validateAlignment(actualChunkSize, actualChunkSize, alignment);
+
         this.alignment = alignment;
         return this;
+    }
+
+    public void validateAlignment(int ifSet, int actualChunkSize, int alignment) {
+        if (ifSet > 0 && actualChunkSize % alignment != 0)
+            throw new IllegalArgumentException("The chunk size (" + actualChunkSize + ") must be a multiple of the alignment (" + alignment + ")");
     }
 
     int valueAlignment() {
@@ -934,7 +1004,9 @@ public final class ChronicleMapBuilder<K, V> implements
             return alignment;
         try {
             if (Values.isValueInterfaceOrImplClass(valueBuilder.tClass)) {
-                return ValueModel.acquire(valueBuilder.tClass).recommendedOffsetAlignment();
+                int alignment = ValueModel.acquire(valueBuilder.tClass).recommendedOffsetAlignment();
+                validateAlignment(alignment, actualChunkSize, alignment);
+                return alignment;
             } else {
                 return NO_ALIGNMENT;
             }
@@ -1588,6 +1660,18 @@ public final class ChronicleMapBuilder<K, V> implements
     }
 
     @Override
+    public ChronicleMapBuilder<K, V> setPreShutdownAction(Runnable preShutdownAction) {
+        this.preShutdownAction = preShutdownAction;
+        return this;
+    }
+
+    @Override
+    public ChronicleMapBuilder<K, V> skipCloseOnExitHook(boolean skipCloseOnExitHook) {
+        this.skipCloseOnExitHook = skipCloseOnExitHook;
+        return this;
+    }
+
+    @Override
     public ChronicleMap<K, V> create() {
         // clone() to make this builder instance thread-safe, because createWithoutFile() method
         // computes some state based on configurations, but doesn't synchronize on configuration
@@ -1884,7 +1968,7 @@ public final class ChronicleMapBuilder<K, V> implements
     }
 
     private void establishReplication(
-            VanillaChronicleMap<K, V, ?> map) throws IOException {
+            VanillaChronicleMap<K, V, ?> map) {
         if (map instanceof ReplicatedChronicleMap) {
             ReplicatedChronicleMap result = (ReplicatedChronicleMap) map;
             if (cleanupRemovedEntries)

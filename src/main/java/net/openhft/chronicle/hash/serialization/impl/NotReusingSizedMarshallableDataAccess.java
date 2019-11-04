@@ -1,18 +1,17 @@
 /*
- *      Copyright (C) 2012, 2016  higherfrequencytrading.com
- *      Copyright (C) 2016 Roman Leventov
+ * Copyright 2012-2018 Chronicle Map Contributors
  *
- *      This program is free software: you can redistribute it and/or modify
- *      it under the terms of the GNU Lesser General Public License as published by
- *      the Free Software Foundation, either version 3 of the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      This program is distributed in the hope that it will be useful,
- *      but WITHOUT ANY WARRANTY; without even the implied warranty of
- *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *      GNU Lesser General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *      You should have received a copy of the GNU Lesser General Public License
- *      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.openhft.chronicle.hash.serialization.impl;
@@ -21,13 +20,16 @@ import net.openhft.chronicle.hash.serialization.DataAccess;
 import net.openhft.chronicle.hash.serialization.SizedReader;
 import net.openhft.chronicle.hash.serialization.SizedWriter;
 
+import java.lang.reflect.Type;
+
 import static net.openhft.chronicle.hash.serialization.StatefulCopyable.copyIfNeeded;
+import static net.openhft.chronicle.hash.serialization.impl.DefaultElasticBytes.DEFAULT_BYTES_CAPACITY;
 
 public class NotReusingSizedMarshallableDataAccess<T> extends SizedMarshallableDataAccess<T> {
 
     public NotReusingSizedMarshallableDataAccess(
-            Class<T> tClass, SizedReader<T> sizedReader, SizedWriter<? super T> sizedWriter) {
-        super(tClass, sizedReader, sizedWriter);
+            Type tClass, SizedReader<T> sizedReader, SizedWriter<? super T> sizedWriter) {
+        super(tClass, sizedReader, sizedWriter, DEFAULT_BYTES_CAPACITY);
     }
 
     @Override
@@ -38,6 +40,6 @@ public class NotReusingSizedMarshallableDataAccess<T> extends SizedMarshallableD
     @Override
     public DataAccess<T> copy() {
         return new NotReusingSizedMarshallableDataAccess<>(
-                tClass(), copyIfNeeded(sizedReader()), copyIfNeeded(sizedWriter()));
+                tType(), copyIfNeeded(sizedReader()), copyIfNeeded(sizedWriter()));
     }
 }

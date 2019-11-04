@@ -1,18 +1,17 @@
 /*
- *      Copyright (C) 2012, 2016  higherfrequencytrading.com
- *      Copyright (C) 2016 Roman Leventov
+ * Copyright 2012-2018 Chronicle Map Contributors
  *
- *      This program is free software: you can redistribute it and/or modify
- *      it under the terms of the GNU Lesser General Public License as published by
- *      the Free Software Foundation, either version 3 of the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      This program is distributed in the hope that it will be useful,
- *      but WITHOUT ANY WARRANTY; without even the implied warranty of
- *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *      GNU Lesser General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *      You should have received a copy of the GNU Lesser General Public License
- *      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.openhft.chronicle.hash;
@@ -32,6 +31,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Base interface for {@link ChronicleMapBuilder} and {@link ChronicleSetBuilder}, i. e. defines
@@ -744,6 +744,34 @@ public interface ChronicleHashBuilder<K, H extends ChronicleHash<K, ?, ?, ?>,
     H recoverPersistedTo(
             File file, boolean sameBuilderConfigAndLibraryVersion,
             ChronicleHashCorruption.Listener corruptionListener) throws IOException;
+
+    /**
+     * A {@link ChronicleHash} created using this builder is closed using a JVM shutdown hook.
+     * This method lets you perform an action before the {@link ChronicleHash} is closed.
+     * <p>
+     * <p>The registered action is not executed when JVM is running and a
+     * {@link ChronicleHash#close()} is explicitly called.
+     * <p>
+     * <p>Example usage of this call: To carry out a graceful shutdown and explicitly
+     * control when the {@link ChronicleHash} is closed, the action can be a wait on a
+     * {@link CountDownLatch} that would be released appropriately.
+     *
+     * @param preShutdownAction action to run before closing the {@link ChronicleHash} in a
+     *                          JVM shutdown hook.
+     * @return this builder back
+     */
+    B setPreShutdownAction(Runnable preShutdownAction);
+
+    /**
+     * Skips the default automatic close configuration on the {@link ChronicleHash} created by
+     * this builder. By setting this to true, the caller agrees to closing the built {@link ChronicleHash}
+     * explicitly. Any pre-shutdown action configured via {@link this#setPreShutdownAction(Runnable)}
+     * won't be executed if skipCloseOnExitHook is set to true.
+     *
+     * @param skipCloseOnExitHook if {@code true}, default automatic close configuration is not enabled.
+     * @return this builder back
+     */
+    B skipCloseOnExitHook(boolean skipCloseOnExitHook);
 
     /**
      * @deprecated don't use private API in the client code
