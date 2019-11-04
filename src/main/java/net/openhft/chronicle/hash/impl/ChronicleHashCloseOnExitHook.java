@@ -1,17 +1,17 @@
 /*
- *      Copyright (C) 2016 Roman Leventov
+ * Copyright 2012-2018 Chronicle Map Contributors
  *
- *      This program is free software: you can redistribute it and/or modify
- *      it under the terms of the GNU Lesser General Public License as published by
- *      the Free Software Foundation, either version 3 of the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      This program is distributed in the hope that it will be useful,
- *      but WITHOUT ANY WARRANTY; without even the implied warranty of
- *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *      GNU Lesser General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *      You should have received a copy of the GNU Lesser General Public License
- *      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.openhft.chronicle.hash.impl;
@@ -60,6 +60,20 @@ final class ChronicleHashCloseOnExitHook {
             // close later added maps first
             orderedMaps.descendingMap().values().forEach(h -> {
                 try {
+                    Runnable preShutdownAction = h.getPreShutdownAction();
+                    if (preShutdownAction != null) {
+                        try {
+                            preShutdownAction.run();
+                        } catch (Throwable throwable) {
+                            try {
+                                LOG.error("Error running pre-shutdown action for " + h.toIdentityString() +
+                                        " :", throwable);
+                            } catch (Throwable t2) {
+                                throwable.addSuppressed(t2);
+                                throwable.printStackTrace();
+                            }
+                        }
+                    }
                     h.close();
                 } catch (Throwable throwable) {
                     try {

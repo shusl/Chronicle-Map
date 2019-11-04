@@ -1,18 +1,17 @@
 /*
- *      Copyright (C) 2012, 2016  higherfrequencytrading.com
- *      Copyright (C) 2016 Roman Leventov
+ * Copyright 2012-2018 Chronicle Map Contributors
  *
- *      This program is free software: you can redistribute it and/or modify
- *      it under the terms of the GNU Lesser General Public License as published by
- *      the Free Software Foundation, either version 3 of the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      This program is distributed in the hope that it will be useful,
- *      but WITHOUT ANY WARRANTY; without even the implied warranty of
- *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *      GNU Lesser General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *      You should have received a copy of the GNU Lesser General Public License
- *      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.openhft.chronicle.map.utility;
@@ -47,13 +46,13 @@ import static net.openhft.chronicle.algo.bytes.Access.checkedBytesStoreAccess;
  * shared map (using ChronicleMap) to maintain shared data across any processes
  * which use a ProcessInstanceLimiter, and checking on startup and regularly
  * after whether it is allowed to run.
- * <p/>
+ * <p>
  * <p>Typically, you need to specify two things to create an instance of
  * ProcessInstanceLimiter: a path to a file that will hold the shared map; and a
  * callback object (an instance implementing ProcessInstanceLimiter.Callback) to
  * handle the various possible callback messages that the ProcessInstanceLimiter
  * can generate.
- * <p/>
+ * <p>
  * <p>Once you have a ProcessInstanceLimiter instance, you specify a type of
  * process (any string) which will be limited to up to N processes running at
  * the same time by calling the setMaxNumberOfProcessesOfType() method. Finally
@@ -61,18 +60,18 @@ import static net.openhft.chronicle.algo.bytes.Access.checkedBytesStoreAccess;
  * startingProcessOfType(X). This last is deliberately not done automatically as
  * you may wish for one type of process to define limitations on other types of
  * processes.
- * <p/>
+ * <p>
  * <p>The are some convenience methods which allow you to quickly specify a limit
  * without consideration of the above. For example, if during your application
  * startup you call ProcessInstanceLimiter.limitTo(2), then you need not call
  * anything else and you have limited your application to running at most 2 JVM
  * instances of your application. Under the covers, this call is identical to
  * the sequence:
- * <p/>
+ * <p>
  * <p>ProcessInstanceLimiter limiter = new ProcessInstanceLimiter();
  * limiter.setMaxNumberOfProcessesOfType(processType,numProcesses);
  * limiter.startingProcessOfType(processType);
- * <p/>
+ * <p>
  * <p>This:
  * 1. Creates a shared file called ProcessInstanceLimiter_DEFAULT_SHARED_MAP_ in
  * the temp directory to hold an instance of ChronicleMap
@@ -160,7 +159,7 @@ public class ProcessInstanceLimiter implements Runnable {
 
     /**
      * Convenience method.
-     * <p/>
+     * <p>
      * <p>Create a ProcessInstanceLimiter instance which is limited to one OS
      * process instance of the DEFAULT type. This will enforce that any JVM on
      * the same box which runs the code
@@ -176,7 +175,7 @@ public class ProcessInstanceLimiter implements Runnable {
 
     /**
      * Convenience method.
-     * <p/>
+     * <p>
      * <p>Create a ProcessInstanceLimiter instance which is limited to
      * "numProcesses" OS process instances of the DEFAULT type. This will
      * enforce that any JVM on the same box which runs the code
@@ -195,7 +194,7 @@ public class ProcessInstanceLimiter implements Runnable {
 
     /**
      * Convenience method.
-     * <p/>
+     * <p>
      * <p>Create a ProcessInstanceLimiter instance which is limited to
      * "numProcesses" OS process instances of the "processType" type. This will
      * enforce that any JVM on the same box which runs the code
@@ -533,7 +532,7 @@ public class ProcessInstanceLimiter implements Runnable {
     /**
      * The Data object holds an array of timestamps and a maximum number of
      * processes allowed to be running concurrently
-     * <p/>
+     * <p>
      * <p>The Timelock field is just for locking the time field
      */
     public interface Data {

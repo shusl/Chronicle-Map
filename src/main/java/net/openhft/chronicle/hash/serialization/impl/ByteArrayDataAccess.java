@@ -1,18 +1,17 @@
 /*
- *      Copyright (C) 2012, 2016  higherfrequencytrading.com
- *      Copyright (C) 2016 Roman Leventov
+ * Copyright 2012-2018 Chronicle Map Contributors
  *
- *      This program is free software: you can redistribute it and/or modify
- *      it under the terms of the GNU Lesser General Public License as published by
- *      the Free Software Foundation, either version 3 of the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      This program is distributed in the hope that it will be useful,
- *      but WITHOUT ANY WARRANTY; without even the implied warranty of
- *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *      GNU Lesser General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *      You should have received a copy of the GNU Lesser General Public License
- *      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package net.openhft.chronicle.hash.serialization.impl;
@@ -44,7 +43,7 @@ public class ByteArrayDataAccess extends AbstractData<byte[]> implements DataAcc
     }
 
     private void initTransients() {
-        bs = HeapBytesStore.uninitialized();
+        bs = null;
     }
 
     @Override
@@ -78,14 +77,14 @@ public class ByteArrayDataAccess extends AbstractData<byte[]> implements DataAcc
     @Override
     public Data<byte[]> getData(@NotNull byte[] instance) {
         array = instance;
-        bs.init(instance);
+        bs = HeapBytesStore.wrap(array);
         return this;
     }
 
     @Override
     public void uninit() {
         array = null;
-        bs.uninit();
+        bs = null;
     }
 
     @Override
@@ -102,5 +101,10 @@ public class ByteArrayDataAccess extends AbstractData<byte[]> implements DataAcc
     public void readMarshallable(@NotNull WireIn wireIn) {
         // no fields to read
         initTransients();
+    }
+
+    @Override
+    public String toString() {
+        return new String(array, 0, 0, array.length);
     }
 }
